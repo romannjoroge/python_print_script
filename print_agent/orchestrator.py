@@ -39,20 +39,24 @@ class Orchestrator:
         ack_on_transient_failure: bool = False,
     ) -> None:
         self._config = config
-        self._client = client or OdooClient(
-            base_url=config.odoo_url, api_key=""
-        )
+        self._injected_client = client
         self._ack_on_transient_failure = ack_on_transient_failure
         self._connections: dict[str, PrinterConnection] = {}
+        self._clients: dict[str, OdooClient] = {}
         self._consecutive_errors: dict[str, int] = {}
-        self._printers_by_api_key: dict[str, PrinterConfig] = {}
         self._init_connections()
 
     def _init_connections(self) -> None:
         for printer in self._config.printers:
             conn = self._create_connection(printer)
             self._connections[printer.name] = conn
-            self._printers_by_api_key[printer.api_key] = printer
+            if self._injected_client:
+                self._clients[printer.name] = self._injected_client
+            else:
+                self._clients[printer.name] = OdooClient(
+                    base_url=self._config.odoo_url,
+                    api_key=printer.api_key,
+                )
 
     def _create_connection(self, printer: PrinterConfig) -> PrinterConnection:
         if isinstance(printer, NetworkPrinterConfig):
@@ -72,14 +76,15 @@ class Orchestrator:
 
     def _poll_printer(self, printer: PrinterConfig) -> None:
         """Poll a single printer for pending jobs."""
+        client = self._clients[printer.name]
         try:
-            jobs = self._client.get_pending_jobs()
+            jobs = client.get_pending_jobs()
         except OdooClientError as e:
             logger.error("Failed to fetch jobs for %s: %s", printer.name, e)
             return
 
         for job in jobs:
-            self._process_job(printer, job, self._client)
+            self._process_job(printer, job, client)
 
     def _process_job(self, printer, job, client: OdooClient) -> None:
         conn = self._connections[printer.name]
