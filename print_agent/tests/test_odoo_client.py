@@ -54,7 +54,7 @@ class TestOdooClientPendingJobs:
         mock_get.assert_called_once()
         call_args = mock_get.call_args
         assert "/receipt_printer/pending_jobs" in call_args[0][0]
-        assert call_args[1]["headers"]["X-Api-Key"] == "k1"
+        assert call_args[1]["headers"]["Authorization"] == "Bearer k1"
 
     def test_empty_jobs(self):
         client = OdooClient(base_url="http://odoo:8069", api_key="k1")

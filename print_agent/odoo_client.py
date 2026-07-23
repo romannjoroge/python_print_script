@@ -36,7 +36,7 @@ class OdooClient:
         self._timeout = timeout
 
     def _headers(self) -> dict[str, str]:
-        return {"X-Api-Key": self._api_key}
+        return {"Authorization": f"Bearer {self._api_key}"}
 
     def get_pending_jobs(self) -> list[Job]:
         """Fetch pending jobs for this printer."""
