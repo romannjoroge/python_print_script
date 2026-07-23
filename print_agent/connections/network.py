@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import ipaddress
 import socket
 
 from print_agent.connections.base import PrinterConnection, PrinterConnectionError
+
+
+def _is_ipv6(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host).version == 6
+    except ValueError:
+        return False
 
 
 class NetworkPrinterConnection(PrinterConnection):
@@ -17,7 +25,8 @@ class NetworkPrinterConnection(PrinterConnection):
 
     def connect(self) -> None:
         try:
-            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            af = socket.AF_INET6 if _is_ipv6(self._host) else socket.AF_INET
+            self._socket = socket.socket(af, socket.SOCK_STREAM)
             self._socket.connect((self._host, self._port))
         except Exception as e:
             self._socket = None

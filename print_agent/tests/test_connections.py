@@ -170,3 +170,52 @@ class TestNetworkPrinterConnection:
 
         with pytest.raises(PrinterConnectionError):
             conn.send(b"data")
+
+
+class TestNetworkPrinterConnectionIPv6:
+    def test_ipv6_uses_af_inet6(self):
+        with patch("socket.socket") as MockSocket:
+            mock_sock = MagicMock()
+            MockSocket.return_value = mock_sock
+
+            conn = NetworkPrinterConnection(
+                host="fe80::e273:e7ff:fe21:3c1e", port=9100
+            )
+            conn.connect()
+
+            MockSocket.assert_called_once_with(socket.AF_INET6, socket.SOCK_STREAM)
+            mock_sock.connect.assert_called_once_with(
+                ("fe80::e273:e7ff:fe21:3c1e", 9100)
+            )
+
+    def test_ipv4_uses_af_inet(self):
+        with patch("socket.socket") as MockSocket:
+            mock_sock = MagicMock()
+            MockSocket.return_value = mock_sock
+
+            conn = NetworkPrinterConnection(host="192.168.1.1", port=9100)
+            conn.connect()
+
+            MockSocket.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
+
+    def test_ipv6_loopback(self):
+        with patch("socket.socket") as MockSocket:
+            mock_sock = MagicMock()
+            MockSocket.return_value = mock_sock
+
+            conn = NetworkPrinterConnection(host="::1", port=9100)
+            conn.connect()
+
+            MockSocket.assert_called_once_with(socket.AF_INET6, socket.SOCK_STREAM)
+
+    def test_ipv6_connect_failure(self):
+        with patch("socket.socket") as MockSocket:
+            mock_sock = MagicMock()
+            mock_sock.connect.side_effect = ConnectionRefusedError("refused")
+            MockSocket.return_value = mock_sock
+
+            conn = NetworkPrinterConnection(
+                host="fe80::1", port=9100
+            )
+            with pytest.raises(PrinterConnectionError, match="refused"):
+                conn.connect()
