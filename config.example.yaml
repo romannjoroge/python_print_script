@@ -1,0 +1,23 @@
+# print_agent config example
+# Copy this file to config.yaml and fill in your values.
+
+odoo_url: "http://localhost:8069"
+
+printers:
+  - name: receipt_main
+    connection_type: network
+    host: "192.168.1.100"
+    port: 9100
+    api_key: "your-printer-api-key"
+
+  - name: receipt_usb
+    connection_type: usb
+    vendor_id: 0x0456
+    product_id: 0x0808
+    api_key: "your-usb-printer-api-key"
+
+  # Alternative: USB by device path
+  # - name: receipt_usb_path
+  #   connection_type: usb
+  #   device_path: "/dev/usb/lp0"
+  #   api_key: "your-api-key"
