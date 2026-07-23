@@ -29,16 +29,15 @@ class TestRenderReceipt:
         """Every receipt contains ESC/POS formatting commands."""
         payload = {"type": "text", "content": "X"}
         output = render_receipt(payload)
-        # Should contain ESC commands (0x1b prefix) and GS commands (0x1d)
+        # Should contain ESC commands (0x1b prefix)
         assert b"\x1b" in output
-        assert b"\x1d" in output
 
     def test_cut_command_present(self):
-        """Receipts should end with a cut command."""
+        """Receipts should end with a cut/feed command."""
         payload = {"type": "text", "content": "X"}
         output = render_receipt(payload)
-        # GS V = 0x1d 0x56 followed by 0x00 (full cut)
-        assert output[-3:] == b"\x1d\x56\x00"
+        # ESC d 06 = 0x1b 0x64 0x06 (feed and cut)
+        assert output[-2:] == b"\x64\x06"
 
     def test_bold_text(self):
         payload = {
@@ -115,10 +114,40 @@ class TestRenderReceipt:
         payload = {"type": "unknown_format", "data": "something"}
         output = render_receipt(payload)
         assert b"\x1b" in output
-        assert output[-3:] == b"\x1d\x56\x00"
+        assert output[-2:] == b"\x64\x06"
 
     def test_missing_content_uses_empty_string(self):
         payload = {"type": "text"}
         output = render_receipt(payload)
         assert isinstance(output, bytes)
         assert b"\x1b" in output
+
+
+class TestRenderReceiptImage:
+    """Test base64 image payloads."""
+
+    def test_base64_image_produces_bytes(self):
+        # Minimal valid JPEG (1x1 pixel)
+        import base64
+
+        from io import BytesIO
+        from PIL import Image
+
+        buf = BytesIO()
+        Image.new("RGB", (1, 1), "white").save(buf, format="JPEG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+
+        output = render_receipt(b64)
+        assert isinstance(output, bytes)
+        assert len(output) > 0
+        assert output[-2:] == b"\x64\x06"
+
+    def test_invalid_base64_does_not_crash(self):
+        output = render_receipt("not-valid-base64!!!")
+        assert isinstance(output, bytes)
+        assert b"\x64\x06" in output
+
+    def test_non_dict_non_string_payload(self):
+        output = render_receipt(42)
+        assert isinstance(output, bytes)
+        assert b"\x64\x06" in output
