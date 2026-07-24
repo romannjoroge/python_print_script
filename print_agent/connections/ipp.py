@@ -83,11 +83,22 @@ class IppPrinterConnection(PrinterConnection):
         self._send_raw_http(data, content_type)
 
     def _send_raw_tcp(self, data: bytes) -> None:
-        """Send raw bytes directly over TCP socket."""
+        """Send raw bytes directly over TCP socket.
+
+        Closes the connection after sending — many printers buffer data
+        and only print when the connection closes (indicating end of job).
+        """
         if self._tcp_socket is None:
             raise PrinterConnectionError("Raw TCP socket not connected")
         try:
             self._tcp_socket.sendall(data)
+            # Close to signal end-of-job to the printer
+            try:
+                self._tcp_socket.close()
+            except Exception:
+                pass
+            self._tcp_socket = None
+            self._connected = False
         except Exception as e:
             raise PrinterConnectionError(f"Raw TCP send failed: {e}") from e
 

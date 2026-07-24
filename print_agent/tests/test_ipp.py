@@ -79,7 +79,8 @@ class TestIppPrinterConnection:
         # Just verify connect only touches socket, not requests
         assert conn._use_raw_tcp is True
 
-    def test_send_raw_tcp(self):
+    def test_send_raw_tcp_closes_connection(self):
+        """Raw TCP must close socket after send so printer knows job is done."""
         conn = IppPrinterConnection(host="10.0.0.1", port=9100)
         conn._connected = True
         conn._use_raw_tcp = True
@@ -88,6 +89,9 @@ class TestIppPrinterConnection:
 
         conn.send(b"test data")
         mock_sock.sendall.assert_called_once_with(b"test data")
+        mock_sock.close.assert_called_once()
+        assert conn._tcp_socket is None
+        assert conn.is_available() is False
 
     def test_send_raw_tcp_error_raises(self):
         conn = IppPrinterConnection(host="10.0.0.1", port=9100)
