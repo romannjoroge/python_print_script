@@ -183,3 +183,28 @@ The agent handles multiple printers independently — one printer going offline 
 
 - Python 3.10+
 - Dependencies in `requirements.txt`: `pyyaml`, `python-escpos`, `requests`, `Pillow`
+
+## Running Script as Service
+
+To run the script as a service, make sure you have the following installed:
+1. Python
+2. Git
+3. [Choclatey](https://chocolatey.org/install)
+
+Follow the steps below: 
+1. In a priviledged Powershell session install NSSM with ```bash choco install nssm ```
+2. Clone the Github repo in C:/print_agent for example
+3. Create python virtual environment and activate it
+4. Install python dependencies
+5. Configure printers (either with config.yaml or on site by running ```bash python -m print_agent.gui```)
+6. Create NSSM service by running ``` nssm start OdooPrintAgent ``` with the following details:
+   1. Application path: location of python in created virtual environment e.g. ``` C:\print_agent\.venv\Scripts\python.exe ```
+   2. Application startup directory: directory script is installed in e.g. ``` C:\print_agent\ ```
+   3. Arguements: ``` -m print_agent --config  C:\print_agent\config.yaml ```
+   4. Optionally can configure details in details tab
+7. Set auto start with ``` nssm set OdooPrintAgent Start SERVICE_AUTO_START ```
+8. Set logging locations with ``` nssm set OdooPrintAgent AppStderr C:\print_agent\service_stderr.log ```  and ``` nssm set OdooPrintAgent AppStdout C:\print_agent\service_stdout.log ``` 
+9. Start service with ``` nssm start OdooPrintAgent ```
+
+Some useful commands are ``` nssm stop OdooPrintAgent ``` to stop the service ``` nssm restart OdooPrintAgent ``` to restart the agent and ``` nssm edit OdooPrintAgent ``` to edit configuration of the service and running Win + R and services.msc to get list of running services
+
