@@ -27,7 +27,11 @@ Edit `config.yaml` with your Odoo URL, printer(s), and API keys. See `config.exa
 ### 3. Run
 
 ```bash
+# Start the print service (continuous polling)
 python -m print_agent -c config.yaml
+
+# Or open the config editor in your browser
+python -m print_agent.gui
 ```
 
 This starts the poll loop — the agent will continuously check Odoo for pending jobs and print them.
@@ -41,6 +45,7 @@ Options:
   -c, --config PATH   Path to YAML config file (default: config.yaml)
   -v, --verbose       Enable debug logging
   --once              Run a single poll cycle then exit (for testing)
+  --job-delay SECS    Seconds to wait between print jobs (default: 2.0)
 ```
 
 Examples:
@@ -51,11 +56,41 @@ python -m print_agent -c config.yaml --verbose
 
 # Single test cycle
 python -m print_agent -c config.yaml --once
+
+# Faster printing (1 second between jobs)
+python -m print_agent -c config.yaml --job-delay 1
+
+# Slower printing for slow printers (5 seconds between jobs)
+python -m print_agent -c config.yaml --job-delay 5
 ```
+
+### Job Delay
+
+The `--job-delay` option controls how long the agent waits between sending print jobs to a printer. This prevents overwhelming the printer with back-to-back jobs, which can cause lag or missed pages.
+
+| Printer Type | Recommended Delay | Reason |
+|-------------|-------------------|--------|
+| ESC/POS receipt (thermal) | 1–2 seconds | Fast printers, small receipts |
+| HP inkjet/laser | 2–5 seconds | Slower processing, larger documents |
+| USB receipt | 1–2 seconds | Similar to network ESC/POS |
+
+If your printer is lagging or skipping jobs, increase the delay. If jobs are piling up and printing too slowly, decrease it.
 
 ## Configuration
 
-See `config.example.yaml` for a full example. Key fields:
+### Via Web GUI
+
+```bash
+python -m print_agent.gui          # opens at http://localhost:8080
+python -m print_agent.gui -p 3000  # custom port
+python -m print_agent.gui -c my_config.yaml  # custom config file
+```
+
+The GUI is a standalone editor — it reads/writes `config.yaml` directly. The service reads config on startup, so restart the service after making changes in the GUI. The GUI and service are completely independent and can run at the same time.
+
+### Via Config File
+
+Copy the example config and edit it:
 
 ```yaml
 odoo_url: "http://localhost:8069"
