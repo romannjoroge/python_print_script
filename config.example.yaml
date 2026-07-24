@@ -21,3 +21,12 @@ printers:
   #   connection_type: usb
   #   device_path: "/dev/usb/lp0"
   #   api_key: "your-api-key"
+
+  # HP/standard inkjet/laser printer via IPP
+  - name: hp_office
+    connection_type: ipp
+    host: "192.168.1.50"
+    port: 631
+    api_key: "your-printer-api-key"
+    # Optional: explicit printer URI (auto-generated if omitted)
+    # printer_uri: "ipp://192.168.1.50:631/printers/HP_LaserJet"
