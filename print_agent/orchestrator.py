@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import time
 from typing import Protocol
 
-from print_agent.config import Config, PrinterConfig, NetworkPrinterConfig, UsbPrinterConfig
+from print_agent.config import (
+    Config,
+    PrinterConfig,
+    NetworkPrinterConfig,
+    UsbPrinterConfig,
+    IppPrinterConfig,
+)
 from print_agent.connections.base import PrinterConnection, PrinterConnectionError
 from print_agent.connections.network import NetworkPrinterConnection
 from print_agent.connections.usb import UsbPrinterConnection
+from print_agent.connections.ipp import IppPrinterConnection
 from print_agent.odoo_client import OdooClient, OdooClientError
 from print_agent.rendering import render_receipt
 
@@ -19,6 +27,52 @@ logger = logging.getLogger("print_agent.orchestrator")
 BASE_BACKOFF = 1.0  # seconds
 MAX_BACKOFF = 60.0  # seconds
 BACKOFF_MULTIPLIER = 2.0
+
+
+def _prepare_ipp_data(payload) -> tuple[bytes, str]:
+    """Prepare print data for IPP printers.
+
+    Returns (data, content_type) tuple.
+    IPP printers accept raw image/document data. The Odoo payload is
+    a base64-encoded image, so we decode it and return raw bytes.
+    """
+    if isinstance(payload, str):
+        try:
+            data = base64.b64decode(payload)
+            # Detect image type from magic bytes
+            content_type = _detect_content_type(data)
+            return data, content_type
+        except Exception:
+            raise ValueError(f"Invalid base64 payload for IPP printer")
+    elif isinstance(payload, dict):
+        content = payload.get("content", "")
+        if isinstance(content, str) and len(content) > 100:
+            # Likely base64 data in content field
+            try:
+                data = base64.b64decode(content)
+                content_type = _detect_content_type(data)
+                return data, content_type
+            except Exception:
+                pass
+        # Fall back to rendering as ESC/POS
+        from print_agent.rendering import render_receipt
+        return render_receipt(payload), "application/octet-stream"
+    else:
+        from print_agent.rendering import render_receipt
+        return render_receipt(payload), "application/octet-stream"
+
+
+def _detect_content_type(data: bytes) -> str:
+    """Detect MIME type from file magic bytes."""
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:5] == b"%PDF-":
+        return "application/pdf"
+    if data[:4] == b"\x00\x00\x01\x00":
+        return "image/x-icon"
+    return "application/octet-stream"
 
 
 class Orchestrator:
@@ -67,6 +121,12 @@ class Orchestrator:
                 product_id=printer.product_id,
                 device_path=printer.device_path,
             )
+        if isinstance(printer, IppPrinterConfig):
+            return IppPrinterConnection(
+                host=printer.host,
+                port=printer.port,
+                printer_uri=printer.printer_uri,
+            )
         raise ValueError(f"Unknown printer type: {type(printer)}")
 
     def _poll_once(self) -> None:
@@ -103,8 +163,14 @@ class Orchestrator:
                     )
                     return
 
-            espos_bytes = render_receipt(job.payload)
-            conn.send(espos_bytes)
+            # IPP printers get raw image data; ESC/POS printers get rendered bytes
+            if isinstance(printer, IppPrinterConfig):
+                print_data, content_type = _prepare_ipp_data(job.payload)
+                conn.send(print_data, content_type=content_type)
+            else:
+                print_data = render_receipt(job.payload)
+                conn.send(print_data)
+
             client.ack_job(job_id=job.id, status="printed")
             self._consecutive_errors[printer.name] = 0
             logger.info(

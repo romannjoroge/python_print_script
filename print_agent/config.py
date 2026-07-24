@@ -42,6 +42,16 @@ class UsbPrinterConfig(PrinterConfig):
 
 
 @dataclass(frozen=True)
+class IppPrinterConfig(PrinterConfig):
+    """IPP printer (HP inkjet/laser, Brother, Canon, etc.)."""
+
+    connection_type: Literal["ipp"] = "ipp"
+    host: str = ""
+    port: int = 631
+    printer_uri: str = ""
+
+
+@dataclass(frozen=True)
 class Config:
     """Top-level agent configuration."""
 
@@ -129,7 +139,21 @@ def _parse_printer(raw: dict, index: int) -> PrinterConfig:
             device_path=device_path,
         )
 
+    if connection_type == "ipp":
+        host = raw.get("host")
+        if not host:
+            raise ConfigError(
+                f"{prefix} ({name}): IPP printer requires 'host'"
+            )
+        return IppPrinterConfig(
+            name=name,
+            api_key=api_key,
+            host=host,
+            port=raw.get("port", 631),
+            printer_uri=raw.get("printer_uri", ""),
+        )
+
     raise ConfigError(
         f"{prefix} ({name}): Unknown connection type '{connection_type}'. "
-        "Valid types: 'network', 'usb'"
+        "Valid types: 'network', 'usb', 'ipp'"
     )
