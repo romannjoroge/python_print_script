@@ -35,6 +35,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Run a single poll cycle then exit (for testing)",
     )
+    parser.add_argument(
+        "--job-delay",
+        type=float,
+        default=2.0,
+        help="Seconds to wait between print jobs (default: 2.0)",
+    )
 
     args = parser.parse_args(argv)
     setup_logging(args.verbose)
@@ -52,8 +58,9 @@ def main(argv: list[str] | None = None) -> int:
         logger.info(
             "  Printer '%s' (%s)", printer.name, printer.connection_type
         )
+    logger.info("Job delay: %.1f seconds", args.job_delay)
 
-    orch = Orchestrator(config)
+    orch = Orchestrator(config, job_delay=args.job_delay)
 
     if args.once:
         orch._poll_once()

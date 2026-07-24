@@ -84,6 +84,7 @@ class Orchestrator:
     - On non-transient errors (USB unplugged, permanent connection loss),
       we ack with status="failed" so Odoo knows the job won't print.
     - One printer's failure never blocks another printer's polling.
+    - A configurable delay between jobs prevents overwhelming the printer.
     """
 
     def __init__(
@@ -91,10 +92,12 @@ class Orchestrator:
         config: Config,
         client: OdooClient | None = None,
         ack_on_transient_failure: bool = False,
+        job_delay: float = 2.0,
     ) -> None:
         self._config = config
         self._injected_client = client
         self._ack_on_transient_failure = ack_on_transient_failure
+        self._job_delay = job_delay
         self._connections: dict[str, PrinterConnection] = {}
         self._clients: dict[str, OdooClient] = {}
         self._consecutive_errors: dict[str, int] = {}
@@ -170,6 +173,10 @@ class Orchestrator:
             else:
                 print_data = render_receipt(job.payload)
                 conn.send(print_data)
+
+            # Wait for printer to finish before ACKing and moving to next job
+            if self._job_delay > 0:
+                time.sleep(self._job_delay)
 
             client.ack_job(job_id=job.id, status="printed")
             self._consecutive_errors[printer.name] = 0
