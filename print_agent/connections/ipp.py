@@ -44,18 +44,12 @@ class IppPrinterConnection(PrinterConnection):
         self._tcp_socket: socket.socket | None = None
 
     def connect(self) -> None:
-        """Try HTTP first, then raw TCP."""
-        # Try HTTP endpoints
-        for path in self._IPP_PATHS:
-            try:
-                resp = requests.get(f"http://{self._host}:{self._port}{path}", timeout=5)
-                self._connected = True
-                self._working_path = path
-                return
-            except Exception:
-                continue
+        """Verify the printer port is reachable via TCP.
 
-        # Try raw TCP (port 9100 or configured port)
+        Does NOT send any HTTP data during connection — the printer would
+        print raw HTTP headers as text. Just opens a TCP socket to check
+        the port is listening.
+        """
         try:
             self._tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._tcp_socket.settimeout(5)
@@ -67,7 +61,7 @@ class IppPrinterConnection(PrinterConnection):
             self._tcp_socket = None
 
         raise PrinterConnectionError(
-            f"Printer at {self._host}:{self._port} not reachable via HTTP or TCP"
+            f"Printer at {self._host}:{self._port} not reachable"
         )
 
     def send(self, data: bytes, content_type: str = "application/octet-stream") -> None:

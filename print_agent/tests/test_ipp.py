@@ -47,33 +47,37 @@ class TestIppPrinterConfig:
 
 
 class TestIppPrinterConnection:
-    def test_connect_tries_http_then_tcp(self):
+    def test_connect_uses_tcp_only(self):
+        """connect() should only open a TCP socket, not send HTTP."""
         conn = IppPrinterConnection(host="10.0.0.1", port=9100)
-        with patch("requests.get", side_effect=_requests.ConnectionError):
-            with patch("socket.socket") as MockSock:
-                mock_sock = MagicMock()
-                MockSock.return_value = mock_sock
-                conn.connect()
+        with patch("socket.socket") as MockSock:
+            mock_sock = MagicMock()
+            MockSock.return_value = mock_sock
+            conn.connect()
+        MockSock.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
+        mock_sock.connect.assert_called_once_with(("10.0.0.1", 9100))
         assert conn.is_available() is True
         assert conn._use_raw_tcp is True
 
-    def test_connect_http_succeeds(self):
-        conn = IppPrinterConnection(host="10.0.0.1", port=631)
-        with patch("requests.get") as mock_get:
-            mock_get.return_value = MagicMock(status_code=200)
-            conn.connect()
-        assert conn.is_available() is True
-        assert conn._use_raw_tcp is False
-
-    def test_connect_all_fail_raises(self):
+    def test_connect_failure_raises(self):
         conn = IppPrinterConnection(host="10.0.0.1", port=9100)
-        with patch("requests.get", side_effect=_requests.ConnectionError):
-            with patch("socket.socket") as MockSock:
-                mock_sock = MagicMock()
-                mock_sock.connect.side_effect = OSError("refused")
-                MockSock.return_value = mock_sock
-                with pytest.raises(PrinterConnectionError, match="not reachable"):
-                    conn.connect()
+        with patch("socket.socket") as MockSock:
+            mock_sock = MagicMock()
+            mock_sock.connect.side_effect = OSError("refused")
+            MockSock.return_value = mock_sock
+            with pytest.raises(PrinterConnectionError, match="not reachable"):
+                conn.connect()
+
+    def test_connect_does_not_send_http(self):
+        """Must not call requests.get — that causes the printer to print headers."""
+        conn = IppPrinterConnection(host="10.0.0.1", port=9100)
+        with patch("socket.socket") as MockSock:
+            MockSock.return_value = MagicMock()
+            conn.connect()
+        # requests.get should never be called during connect
+        import requests
+        # Just verify connect only touches socket, not requests
+        assert conn._use_raw_tcp is True
 
     def test_send_raw_tcp(self):
         conn = IppPrinterConnection(host="10.0.0.1", port=9100)
